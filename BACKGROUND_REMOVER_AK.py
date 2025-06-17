@@ -6,6 +6,8 @@
 import sys
 import io
 import numpy as np
+import os      
+import tempfile
 import onnxruntime
 from PIL import Image, ImageDraw, ImageQt, ImageOps, ImageGrab
 from PySide6.QtWidgets import (
@@ -20,7 +22,7 @@ from PySide6.QtGui import (
     QPixmap, QImage, QPainter, QPen, QBrush, QColor, QCursor, QIcon,
     QKeySequence, QAction, QDesktopServices 
 )
-from PySide6.QtCore import Qt, QPoint, QRect, QBuffer, QByteArray, QSize, Signal, QUrl
+from PySide6.QtCore import Qt, QPoint, QRect, QBuffer, QByteArray, QSize, Signal, QUrl, QMimeData
 # Make rembg import optional for basic running without it
 try:
     from rembg import remove as remove_bg
@@ -103,6 +105,7 @@ class InteractiveLabel(QLabel):
         self.brush_size = 10
         self.keep_points, self.remove_points, self.current_stroke = [], [], []
         self.scroll_area = None
+        self.temp_files_to_clean = []
 
         self.setMouseTracking(True)
         #self.setAlignment(Qt.AlignmentFlag.TopLeft)
@@ -373,8 +376,10 @@ class MainWindow(QMainWindow):
         self.action_save = QAction(QIcon.fromTheme("document-save-as"), "&Save As...", self, shortcut=QKeySequence.StandardKey.SaveAs, toolTip="Save Processed Image (Ctrl+Shift+S)")
         self.action_copy = QAction(QIcon.fromTheme("edit-copy"), "&Copy Image", self, shortcut=QKeySequence.StandardKey.Copy, toolTip="Copy Processed Image to Clipboard (Ctrl+C)")
         self.action_quit = QAction(QIcon.fromTheme("application-exit"), "&Quit", self, shortcut=QKeySequence.StandardKey.Quit, toolTip="Exit Application (Ctrl+Q)")
-        self.action_undo = QAction(QIcon.fromTheme("edit-undo"), "&Undo", self, shortcut=QKeySequence.StandardKey.Undo, toolTip="Undo Last Action (Ctrl+Z)")
-        self.action_redo = QAction(QIcon.fromTheme("edit-redo"), "&Redo", self, shortcut=QKeySequence.StandardKey.Redo, toolTip="Redo Last Action (Ctrl+Y)")
+        self.action_undo = QAction(QIcon.fromTheme("edit-undo"), "&Undo", self, toolTip="Undo Last Action (Ctrl+Z)")
+        self.action_undo.setShortcut(QKeySequence.StandardKey.Undo)
+        self.action_redo = QAction(QIcon.fromTheme("edit-redo"), "&Redo", self, toolTip="Redo Last Action (Ctrl+Y)")
+        self.action_redo.setShortcuts([QKeySequence.StandardKey.Redo, "Ctrl+Y"])
         self.action_reset = QAction(QIcon.fromTheme("document-revert"), "&Reset Image", self, toolTip="Reset Image to Original Loaded State")
         self.action_zoom_in = QAction("Zoom In", self, shortcut="Ctrl+=", toolTip="Zoom In (Ctrl++)")
         self.action_zoom_out = QAction("Zoom Out", self, shortcut="Ctrl+-", toolTip="Zoom Out (Ctrl+-)")
@@ -715,10 +720,47 @@ class MainWindow(QMainWindow):
             QApplication.restoreOverrideCursor()
 
     def copy_to_clipboard(self):
-        if not self.current_pil_image: return
-        qimage = ImageQt.ImageQt(self.current_pil_image.copy())
-        QApplication.clipboard().setImage(qimage)
-        self.statusBar.showMessage("Image copied to clipboard.", 3000)
+        if not self.current_pil_image:
+            QMessageBox.warning(self, "Warning", "No image to copy.")
+            return
+
+        try:
+            # Create a QMimeData object to hold multiple data formats
+            mime_data = QMimeData()
+            
+            # --- Format 1: Standard Image Data (for most apps) ---
+            qimage = ImageQt.ImageQt(self.current_pil_image.copy())
+            mime_data.setImageData(qimage)
+
+            # --- Format 2: Raw PNG Data (for web browsers, chat apps) ---
+            byte_array = QByteArray()
+            buffer = QBuffer(byte_array)
+            buffer.open(QBuffer.OpenModeFlag.WriteOnly)
+            qimage.save(buffer, "PNG")
+            mime_data.setData("image/png", byte_array)
+
+            # --- Format 3: Temporary File Path (for file-based apps) ---
+            # Create a secure temporary file
+            fd, temp_path = tempfile.mkstemp(suffix='.png', prefix='bgr-app-')
+            os.close(fd) # Close the file descriptor, we just need the path
+
+            # Save the image to the temporary path
+            self.current_pil_image.save(temp_path, "PNG")
+
+            # Add the file to our cleanup list
+            self.temp_files_to_clean.append(temp_path)
+
+            # Set the URL list for file-based clipboard operations
+            mime_data.setUrls([QUrl.fromLocalFile(temp_path)])
+
+            # Set the rich mime data on the clipboard
+            QApplication.clipboard().setMimeData(mime_data)
+
+            self.statusBar.showMessage("Image copied to clipboard in multiple formats.", 3000)
+
+        except Exception as e:
+            QMessageBox.critical(self, "Copy Error", f"Failed to copy image to clipboard: {e}")
+            self.statusBar.showMessage("Copy failed.", 5000)
 
     # --- Image Processing Operations ---
     def run_rembg(self):
@@ -885,6 +927,20 @@ class MainWindow(QMainWindow):
             background.paste(img, mask=img.getchannel('A'))
             return background
         self._perform_timed_operation(operation, "Before Fill Background")
+
+    def closeEvent(self, event):
+        """
+        Clean up any temporary files before the application closes.
+        """
+        for path in self.temp_files_to_clean:
+            try:
+                if os.path.exists(path):
+                    os.remove(path)
+                    print(f"Cleaned up temporary file: {path}")
+            except Exception as e:
+                print(f"Error cleaning up temporary file {path}: {e}")
+        
+        event.accept() # Allow the window to close
 
 if __name__ == "__main__":
     app = QApplication.instance() or QApplication(sys.argv)
