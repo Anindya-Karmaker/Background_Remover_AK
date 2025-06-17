@@ -1,10 +1,14 @@
 # Backgroun_Remover_AK
 Can remove backgrounds and can fill them with colors and runs locally.
+Sample Image is taken from NIH Bioart [https://bioart.niaid.nih.gov/bioart/231]
+Perfect for students or gradstudents trying to make illustrations for posters/abstracts quickly and easily.
+Tested on MacOS
 
 Benefits:
 *Runs locally
 *Can fix edges with granular controls
 *Zoom in and out to fix easily
+*Supports Keyboard Shortcuts with easy operation
 
 Uses rembg [https://github.com/danielgatis/rembg]
 
