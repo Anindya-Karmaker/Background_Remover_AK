@@ -105,7 +105,7 @@ class InteractiveLabel(QLabel):
         self.brush_size = 10
         self.keep_points, self.remove_points, self.current_stroke = [], [], []
         self.scroll_area = None
-        self.temp_files_to_clean = []
+        
 
         self.setMouseTracking(True)
         #self.setAlignment(Qt.AlignmentFlag.TopLeft)
@@ -332,7 +332,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("Background Remover AK")
         self.setGeometry(100, 100, 1400, 800)
-
+        self.temp_files_to_clean = []
         self.original_pil_image, self.current_pil_image = None, None
         self.undo_stack, self.redo_stack = [], []
         self.rembg_model = "u2net"
@@ -352,17 +352,17 @@ class MainWindow(QMainWindow):
         self._update_ui_states()
 
     def _create_widgets(self):
-        self.image_label_original = InteractiveLabel()
-        self.image_label_original.setToolTip("Shows the original loaded image. Not editable.")
-        self.image_label_original.setEnabled(False) # Not interactive
+        #self.image_label_original = InteractiveLabel()
+        #self.image_label_original.setToolTip("Shows the original loaded image. Not editable.")
+        #self.image_label_original.setEnabled(False) # Not interactive
 
         self.image_label_preview = InteractiveLabel()
         self.image_label_preview.setToolTip("Preview/Edit area.\nRight-click to zoom. Use tools to edit.")
 
-        self.scroll_area_original = QScrollArea()
-        self.scroll_area_original.setWidget(self.image_label_original)
-        self.scroll_area_original.setWidgetResizable(True)
-        self.scroll_area_original.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        #self.scroll_area_original = QScrollArea()
+        #self.scroll_area_original.setWidget(self.image_label_original)
+        #self.scroll_area_original.setWidgetResizable(True)
+        #self.scroll_area_original.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.scroll_area_preview = QScrollArea()
         self.scroll_area_preview.setWidget(self.image_label_preview)
@@ -371,16 +371,16 @@ class MainWindow(QMainWindow):
         self.image_label_preview.set_scroll_area(self.scroll_area_preview)
 
     def _create_actions(self):
-        self.action_open = QAction(QIcon.fromTheme("document-open"), "&Open...", self, shortcut=QKeySequence.StandardKey.Open, toolTip="Open Image (Ctrl+O)")
-        self.action_paste = QAction(QIcon.fromTheme("edit-paste"), "&Paste Image", self, shortcut=QKeySequence.StandardKey.Paste, toolTip="Paste Image from Clipboard (Ctrl+V)")
-        self.action_save = QAction(QIcon.fromTheme("document-save-as"), "&Save As...", self, shortcut=QKeySequence.StandardKey.SaveAs, toolTip="Save Processed Image (Ctrl+Shift+S)")
-        self.action_copy = QAction(QIcon.fromTheme("edit-copy"), "&Copy Image", self, shortcut=QKeySequence.StandardKey.Copy, toolTip="Copy Processed Image to Clipboard (Ctrl+C)")
-        self.action_quit = QAction(QIcon.fromTheme("application-exit"), "&Quit", self, shortcut=QKeySequence.StandardKey.Quit, toolTip="Exit Application (Ctrl+Q)")
-        self.action_undo = QAction(QIcon.fromTheme("edit-undo"), "&Undo", self, toolTip="Undo Last Action (Ctrl+Z)")
+        self.action_open = QAction("Open...", self, shortcut=QKeySequence.StandardKey.Open, toolTip="Open Image (Ctrl+O)")
+        self.action_paste = QAction("Paste Image", self, shortcut=QKeySequence.StandardKey.Paste, toolTip="Paste Image from Clipboard (Ctrl+V)")
+        self.action_save = QAction("Save As...", self, shortcut=QKeySequence.StandardKey.SaveAs, toolTip="Save Processed Image (Ctrl+Shift+S)")
+        self.action_copy = QAction("Copy Image", self, shortcut=QKeySequence.StandardKey.Copy, toolTip="Copy Processed Image to Clipboard (Ctrl+C)")
+        self.action_quit = QAction("Quit", self, shortcut=QKeySequence.StandardKey.Quit, toolTip="Exit Application (Ctrl+Q)")
+        self.action_undo = QAction("Undo", self, toolTip="Undo Last Action (Ctrl+Z)")
         self.action_undo.setShortcut(QKeySequence.StandardKey.Undo)
-        self.action_redo = QAction(QIcon.fromTheme("edit-redo"), "&Redo", self, toolTip="Redo Last Action (Ctrl+Y)")
+        self.action_redo = QAction("Redo", self, toolTip="Redo Last Action (Ctrl+Y)")
         self.action_redo.setShortcuts([QKeySequence.StandardKey.Redo, "Ctrl+Y"])
-        self.action_reset = QAction(QIcon.fromTheme("document-revert"), "&Reset Image", self, toolTip="Reset Image to Original Loaded State")
+        self.action_reset = QAction("Reset Image", self, toolTip="Reset Image to Original Loaded State")
         self.action_zoom_in = QAction("Zoom In", self, shortcut="Ctrl+=", toolTip="Zoom In (Ctrl++)")
         self.action_zoom_out = QAction("Zoom Out", self, shortcut="Ctrl+-", toolTip="Zoom Out (Ctrl+-)")
         self.action_zoom_reset = QAction("Reset Zoom", self, shortcut="Ctrl+0", toolTip="Fit image to view (Ctrl+0)")
@@ -500,12 +500,11 @@ class MainWindow(QMainWindow):
 
         # Main Layout
         main_splitter = QSplitter(Qt.Orientation.Horizontal)
-        view_splitter = QSplitter(Qt.Orientation.Horizontal)
-        view_splitter.addWidget(self.scroll_area_original)
-        view_splitter.addWidget(self.scroll_area_preview)
-        view_splitter.setSizes([600, 600])
-        main_splitter.addWidget(view_splitter)
+        
+        # The view_splitter is no longer needed, add the preview area directly
+        main_splitter.addWidget(self.scroll_area_preview) 
         main_splitter.addWidget(control_widget)
+
         main_splitter.setSizes([900, 300])
         self.setCentralWidget(main_splitter)
 
@@ -568,18 +567,22 @@ class MainWindow(QMainWindow):
         QApplication.setOverrideCursor(Qt.WaitCursor)
         try:
             pil_image = pil_image.convert('RGBA') if pil_image.mode != 'RGBA' else pil_image
-            self.original_pil_image = pil_image.copy()
+            self.original_pil_image = pil_image.copy() # We still keep the data!
             self.current_pil_image = pil_image.copy()
             self.undo_stack, self.redo_stack = [], []
             self._push_state(self.current_pil_image, "Initial Load")
 
-            for label in [self.image_label_preview, self.image_label_original]:
-                label.clear_overlays()
-                label.clear_interaction_state()
+            # The loop is no longer needed, just clear the preview label
+            self.image_label_preview.clear_overlays()
+            self.image_label_preview.clear_interaction_state()
 
-            self.image_label_original.set_pixmap(pil_to_qpixmap(self.original_pil_image))
+            # Remove the lines that updated the original view
+            # self.image_label_original.set_pixmap(pil_to_qpixmap(self.original_pil_image))
+            
             self.image_label_preview.set_pixmap(pil_to_qpixmap(self.current_pil_image))
-            self.image_label_original.fit_to_view()
+            
+            # Remove the fit_to_view for the original view
+            # self.image_label_original.fit_to_view()
             self.image_label_preview.fit_to_view()
             
             self.selected_color_rgb = None
@@ -719,6 +722,7 @@ class MainWindow(QMainWindow):
         finally:
             QApplication.restoreOverrideCursor()
 
+    # In MainWindow, replace the entire copy_to_clipboard method
     def copy_to_clipboard(self):
         if not self.current_pil_image:
             QMessageBox.warning(self, "Warning", "No image to copy.")
@@ -727,20 +731,25 @@ class MainWindow(QMainWindow):
         try:
             # Create a QMimeData object to hold multiple data formats
             mime_data = QMimeData()
-            
+
             # --- Format 1: Standard Image Data (for most apps) ---
+            # This part is fine and should be kept for compatibility.
             qimage = ImageQt.ImageQt(self.current_pil_image.copy())
             mime_data.setImageData(qimage)
 
-            # --- Format 2: Raw PNG Data (for web browsers, chat apps) ---
-            byte_array = QByteArray()
-            buffer = QBuffer(byte_array)
-            buffer.open(QBuffer.OpenModeFlag.WriteOnly)
-            qimage.save(buffer, "PNG")
-            mime_data.setData("image/png", byte_array)
+            # --- Format 2: Raw PNG Data (NEW ROBUST IMPLEMENTATION) ---
+            # This new logic mimics the reliable save_image function.
+            # It uses PIL to save to an in-memory bytes buffer.
+            img_byte_buffer = io.BytesIO()
+            self.current_pil_image.save(img_byte_buffer, format='PNG')
+            
+            # Create a QByteArray from the raw bytes data.
+            png_data = QByteArray(img_byte_buffer.getvalue())
+            mime_data.setData("image/png", png_data)
+            # END OF NEW IMPLEMENTATION
 
             # --- Format 3: Temporary File Path (for file-based apps) ---
-            # Create a secure temporary file
+            # This part is also fine and uses the reliable PIL save method.
             fd, temp_path = tempfile.mkstemp(suffix='.png', prefix='bgr-app-')
             os.close(fd) # Close the file descriptor, we just need the path
 
