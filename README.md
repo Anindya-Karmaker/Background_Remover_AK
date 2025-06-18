@@ -4,6 +4,11 @@ Sample Image is taken from NIH Bioart [https://bioart.niaid.nih.gov/bioart/231]
 Perfect for students or gradstudents trying to make illustrations for posters/abstracts quickly and easily.
 Tested on MacOS
 
+Install the Requirements using pip:
+1. pip install pyside6
+2. pip install rembg
+3. pip install onnxruntime
+   
 Benefits:
 *Runs locally
 *Can fix edges with granular controls
