@@ -2,7 +2,7 @@
 Can remove backgrounds and can fill them with colors and runs locally.
 Sample Image is taken from NIH Bioart [https://bioart.niaid.nih.gov/bioart/231]
 Perfect for students or gradstudents trying to make illustrations for posters/abstracts quickly and easily.
-Tested on MacOS
+Tested on MacOS and Windows 11
 
 Install the Requirements using pip:
 1. pip install pyside6
@@ -18,11 +18,13 @@ Benefits:
 Uses rembg [https://github.com/danielgatis/rembg]
 
 Screenshots:
-<img width="1399" alt="image" src="https://github.com/user-attachments/assets/5ac9ff77-8a2c-403c-91bd-afd906ce2aef" />
+![{8854FAF2-6606-498E-8F6B-6ED58DDFFAE3}](https://github.com/user-attachments/assets/d32b6a47-c41d-41b8-8aac-f5921bb06236)
 If auto background removal, removes certain regions, can mark over the areas to recover it:
-<img width="1401" alt="image" src="https://github.com/user-attachments/assets/60424db7-dde3-488c-8323-9c7a1bbbd04e" />
-<img width="1403" alt="image" src="https://github.com/user-attachments/assets/20654f1d-24fe-4907-82a0-5e46cfe23070" />
+![{E841D01E-8C9B-48F2-A69A-C7D519703339}](https://github.com/user-attachments/assets/043da60a-7fa1-4bc6-957f-1744f680b613)
+![{B50FF5D4-CB78-402C-8912-8BF883C20F64}](https://github.com/user-attachments/assets/51c9e16b-40c5-4092-ba08-4fd09f352d4c)
+
 Can also fill with color of choice:
-<img width="1402" alt="image" src="https://github.com/user-attachments/assets/b4a24827-a299-48f3-9290-8bd7736a373d" />
+![{FFE02DBC-2FDF-4D1A-83AB-CDCD6F534359}](https://github.com/user-attachments/assets/8d9cc8d7-b347-4c68-930b-4c094052c5d4)
+
 
 
