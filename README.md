@@ -5,7 +5,8 @@ A high-performance, local background removal tool designed for students, researc
 ![Platform: Windows, macOS](https://img.shields.io/badge/platform-Windows%20%7C%20macOS-blue)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green)
 
-<img width="1400" alt="Main Interface" src="https://github.com/user-attachments/assets/6a7b9a09-bfc6-4b21-8f15-90edcea6db02" />
+<img width="999" alt="image" src="https://github.com/user-attachments/assets/b4ed3bf4-967f-4d3e-a288-158961f377f2" />
+
 
 ## Table of Contents
 - [Key Features](#key-features)
