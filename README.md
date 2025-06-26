@@ -120,16 +120,16 @@ Before compiling, you **must** run the script at least once (`python BACKGROUND_
     <td align="center"><b>Magic Wand Selection</b></td>
   </tr>
   <tr>
-    <td><img width="700" alt="Crop Tool in Action" src="https://github.com/user-attachments/assets/48bbed82-b8ef-4415-b197-33ce1656e36e" /></td>
-    <td><img width="700" alt="Magic Wand Selecting an Area" src="https://github.com/user-attachments/assets/158e8777-22fa-4639-aac7-3bcb187ff0c0" /></td>
+    <td><img width="700" alt="Crop Tool in Action" src="https://github.com/user-attachments/assets/dd04c796-559a-484f-869c-78cd6dbccf0d" /></td>
+    <td><img width="700" alt="Magic Wand Selecting an Area" src="https://github.com/user-attachments/assets/edbc8dfe-d334-450d-b5ee-2a60c9a1cfeb" /></td>
   </tr>
   <tr>
     <td align="center"><b>Refinement Brushes</b></td>
     <td align="center"><b>Color Fill Background</b></td>
   </tr>
   <tr>
-    <td><img width="700" alt="Using Brushes to Refine Edges" src="https://github.com/user-attachments/assets/5695e44a-a930-4552-9c06-d9258428474d" /></td>
-    <td><img width="700" alt="Filling the Background with a Solid Color" src="https://github.com/user-attachments/assets/d5be3e37-0951-46d1-87ec-0badf60db0b" /></td>
+    <td><img width="700" alt="Using Brushes to Refine Edges" src="https://github.com/user-attachments/assets/6290f6ac-a16e-42bf-919c-62b37206bb13" /></td>
+    <td><img width="700" alt="Filling the Background with a Solid Color" src="https://github.com/user-attachments/assets/3adaa353-4ea8-4508-9550-d8a21620b47d" /></td>
   </tr>
 </table>
 
