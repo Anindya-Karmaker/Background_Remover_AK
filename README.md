@@ -9,10 +9,13 @@ Install the Requirements using pip:
 
 Benefits:
 *Runs locally
+
 *Can fix edges with granular controls
+
 *Zoom in and out to fix easily
+
 *Supports Keyboard Shortcuts with easy operation
-*
+
 
 Uses rembg [https://github.com/danielgatis/rembg]
 
