@@ -89,12 +89,12 @@ Before compiling, you **must** run the script at least once (`python BACKGROUND_
 #### For Windows
 
 1.  Place the `build_windows.spec` file in the same directory as your Python script.
-2.  (Optional) For a custom icon, create a file named `icon.ico` and place it in an `assets` sub-folder.
+2.  Download the `assets` sub-folder and place it in the same directory as your Python script.
 3.  Run the PyInstaller command from your terminal:
     ```bash
     pyinstaller build_windows.spec
     ```
-4.  The final application will be in the `dist` folder as `Background Remover AK.exe`.
+4.  The final application will be in the `dist` folder as `Background Remover.exe`.
 
 #### For macOS
 
@@ -104,8 +104,8 @@ Before compiling, you **must** run the script at least once (`python BACKGROUND_
     ```bash
     pyinstaller build_macos.spec
     ```
-4.  The final application will be in the `dist` folder as `Background Remover AK.app`.
-5.  **Fix macOS Gatekeeper Issue**: To run the app, you must first run this command in the terminal:
+4.  The final application will be in the `dist` folder as `Background Remover.app`.
+5.  **Fix macOS Gatekeeper Issue**: To run the app, you may need to run this command first in the terminal (Only try if it does not work) :
     ```bash
     xattr -cr "dist/Background Remover AK.app"
     ```
