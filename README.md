@@ -8,6 +8,7 @@ Install the Requirements using pip:
    pip install PySide6 Pillow numpy scipy rembg requests onnxruntime
 
 Benefits:
+
 *Runs locally
 
 *Can fix edges with granular controls
