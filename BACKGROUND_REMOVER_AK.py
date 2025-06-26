@@ -307,7 +307,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Background Remover AK")
-        self.setGeometry(100, 100, 1400, 800)
+        self.setGeometry(100, 100, 1000, 500)
         self.temp_files_to_clean = []
         
         self.original_pil_image, self.current_pil_image = None, None
