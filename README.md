@@ -13,6 +13,8 @@ Benefits:
 
 *Can fix edges with granular controls
 
+*Fill background with color
+
 *Zoom in and out to fix easily
 
 *Supports Keyboard Shortcuts with easy operation
