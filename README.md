@@ -5,26 +5,31 @@ Perfect for students or gradstudents trying to make illustrations for posters/ab
 Tested on MacOS and Windows 11
 
 Install the Requirements using pip:
-1. pip install pyside6
-2. pip install rembg
-3. pip install onnxruntime
-   
+   pip install PySide6 Pillow numpy scipy rembg requests onnxruntime
+
 Benefits:
 *Runs locally
 *Can fix edges with granular controls
 *Zoom in and out to fix easily
 *Supports Keyboard Shortcuts with easy operation
+*
 
 Uses rembg [https://github.com/danielgatis/rembg]
 
 Screenshots:
-![{8854FAF2-6606-498E-8F6B-6ED58DDFFAE3}](https://github.com/user-attachments/assets/d32b6a47-c41d-41b8-8aac-f5921bb06236)
-If auto background removal, removes certain regions, can mark over the areas to recover it:
-![{E841D01E-8C9B-48F2-A69A-C7D519703339}](https://github.com/user-attachments/assets/043da60a-7fa1-4bc6-957f-1744f680b613)
-![{B50FF5D4-CB78-402C-8912-8BF883C20F64}](https://github.com/user-attachments/assets/51c9e16b-40c5-4092-ba08-4fd09f352d4c)
+<img width="1400" alt="image" src="https://github.com/user-attachments/assets/6a7b9a09-bfc6-4b21-8f15-90edcea6db02" />
+<img width="1400" alt="image" src="https://github.com/user-attachments/assets/48bbed82-b8ef-4415-b197-33ce1656e36e" />
+<img width="1400" alt="image" src="https://github.com/user-attachments/assets/158e8777-22fa-4639-aac7-3bcb187ff0c0" />
+<img width="1397" alt="image" src="https://github.com/user-attachments/assets/5695e44a-a930-4552-9c06-d9258428474d" />
+<img width="1400" alt="image" src="https://github.com/user-attachments/assets/d5be3e37-0951-46d1-87ec-0badf60db80b" />
 
-Can also fill with color of choice:
-![{FFE02DBC-2FDF-4D1A-83AB-CDCD6F534359}](https://github.com/user-attachments/assets/8d9cc8d7-b347-4c68-930b-4c094052c5d4)
+
+
+
+
+
+
+
 
 
 
