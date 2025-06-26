@@ -31,7 +31,7 @@ A high-performance, local background removal tool designed for students, researc
 
 ## Getting Started (Running from Release)
 
-Please [download](https://github.com/Anindya-Karmaker/Background_Remover_AK/releases/tag/Background_Remover_v1.0_MACOS(APPLE_SILICON)) the Background Remover.zip from the MacOS release (compiled on Apple Silicon M1 MacBook Pro) and run it. If you get any error or the program quits, please look at **Fix macOS Gatekeeper Issue**
+Please [download](https://github.com/Anindya-Karmaker/Background_Remover_AK/releases/tag/Background_Remover_v1.0_MACOS(APPLE_SILICON)) the Background Remover.zip from the MacOS release (compiled on Apple Silicon M1 MacBook Pro), extract the .app file and copy it to Applications folder before running it. If you get any error or the program quits, please look at **Fix macOS Gatekeeper Issue**
 
 
 ## Getting Started (Running from Source Code)
