@@ -7,6 +7,7 @@ A high-performance, local background removal tool designed for students, researc
 
 <img width="999" alt="image" src="https://github.com/user-attachments/assets/b4ed3bf4-967f-4d3e-a288-158961f377f2" />
 
+# Disclaimer: AI WAS USED TO MODIFY, FIX OR WRITE PARTS OF THIS CODE
 
 ## Table of Contents
 - [Key Features](#key-features)
