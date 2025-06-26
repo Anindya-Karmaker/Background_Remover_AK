@@ -1,0 +1,7 @@
+PySide6
+Pillow
+numpy
+scipy
+rembg
+requests
+onnxruntime
