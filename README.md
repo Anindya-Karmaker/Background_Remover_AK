@@ -1,4 +1,4 @@
-# Background Remover AK
+# Background Remover
 
 A high-performance, local background removal tool designed for students, researchers, and creators. Quickly and easily remove or replace image backgrounds for posters, presentations, and illustrations. The application runs entirely on your machine, ensuring your data remains private.
 
