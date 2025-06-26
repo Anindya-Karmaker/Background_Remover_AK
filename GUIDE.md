@@ -86,7 +86,7 @@ This is where you can manually perfect your image.
 ## Viewing & Navigation
 
 - **Zoom**: Use `Ctrl` + `Mouse Wheel` or the shortcuts:
-    - Zoom In: `Ctrl` + `+`
-    - Zoom Out: `Ctrl` + `-`
+    - Zoom In: `Ctrl` + `+` OR `CMD` + `+`
+    - Zoom Out: `Ctrl` + `-` OR `CMD` + `-`
 - **Fit to View**: Press `Ctrl+0` to instantly fit the entire image perfectly in the window.
 - **Pan**: Use the scrollbars on the sides of the image preview to move around when zoomed in.
