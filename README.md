@@ -28,7 +28,12 @@ A high-performance, local background removal tool designed for students, researc
 
 ---
 
-## Getting Started (Running from Source)
+## Getting Started (Running from Release)
+
+Please download the Background Remover.zip from the MacOS release (compiled on Apple Silicon M1 MacBook Pro) and run it. If you get any error or the program quits, please look at **Fix macOS Gatekeeper Issue**
+
+
+## Getting Started (Running from Source Code)
 
 Follow these steps to run the application directly using Python.
 
