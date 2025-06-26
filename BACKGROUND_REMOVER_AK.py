@@ -485,7 +485,7 @@ class MainWindow(QMainWindow):
         self.action_zoom_in.triggered.connect(lambda: self.image_label_preview.set_zoom(self.image_label_preview.zoom_level * 1.25))
         self.action_zoom_out.triggered.connect(lambda: self.image_label_preview.set_zoom(self.image_label_preview.zoom_level * 0.8))
         self.action_zoom_reset.triggered.connect(self.image_label_preview.fit_to_view)
-        self.action_info.triggered.connect(lambda: QDesktopServices.openUrl(QUrl("https://github.com/Anindya-Karmaker/Backgroun_Remover_AK")))
+        self.action_info.triggered.connect(lambda: QDesktopServices.openUrl(QUrl("https://github.com/Anindya-Karmaker/Background_Remover_AK")))
 
         self.btn_rembg.clicked.connect(self.run_rembg)
         self.model_combo.currentTextChanged.connect(lambda m: setattr(self, 'rembg_model', m))
