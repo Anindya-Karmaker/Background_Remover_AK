@@ -99,7 +99,7 @@ Before compiling, you **must** run the script at least once (`python BACKGROUND_
 #### For macOS
 
 1.  Place `build_macos.spec` and `runtime_hook.py` in the same directory as your Python script.
-2.  (Optional) For a custom icon, create a file named `icon.icns` and place it in an `assets` sub-folder.
+2.  Download the `assets` sub-folder and place it in the same directory as your Python script.
 3.  Run the PyInstaller command from your terminal:
     ```bash
     pyinstaller build_macos.spec
