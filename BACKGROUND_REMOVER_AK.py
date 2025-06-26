@@ -739,6 +739,8 @@ class MainWindow(QMainWindow):
 
     def copy_to_clipboard(self):
         if not self.current_pil_image: return
+        
+        temp_path = None # Initialize to None for error handling
         try:
             image_to_copy = self.current_pil_image.copy()
             if self.background_color:
@@ -746,13 +748,29 @@ class MainWindow(QMainWindow):
                 background.paste(image_to_copy, mask=image_to_copy)
                 image_to_copy = background
 
+            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as temp_f:
+                temp_path = temp_f.name
+                image_to_copy.save(temp_path, "PNG")
+
+            self.temp_files_to_clean.append(temp_path)
+
             mime_data = QMimeData()
-            qimage = ImageQt.ImageQt(image_to_copy.convert("RGBA"))
-            mime_data.setImageData(qimage)
+            mime_data.setUrls([QUrl.fromLocalFile(temp_path)])
+            
             QApplication.clipboard().setMimeData(mime_data)
-            self.statusBar.showMessage("Image copied to clipboard.", 3000)
+            
+            self.statusBar.showMessage("Image copied to clipboard (preserves transparency).", 4000)
+
         except Exception as e:
             QMessageBox.critical(self, "Copy Error", f"Failed to copy image: {e}")
+            # If an error occurred after the temp file was created, try to clean it up now.
+            if temp_path and os.path.exists(temp_path):
+                try:
+                    os.remove(temp_path)
+                    if temp_path in self.temp_files_to_clean:
+                        self.temp_files_to_clean.remove(temp_path)
+                except OSError as cleanup_error:
+                    print(f"Failed to clean up temporary file during error handling: {cleanup_error}")
 
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls() and any(url.isLocalFile() for url in event.mimeData().urls()):
