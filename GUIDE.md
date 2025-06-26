@@ -1,6 +1,6 @@
-# Quick Start Guide: Background Remover AK
+# Quick Start Guide: Background Remover
 
-Welcome to Background Remover AK! This guide will walk you through the main features and settings to help you get professional-looking results quickly and easily.
+Welcome to Background Remover! This guide will walk you through the main features and settings to help you get professional-looking results quickly and easily.
 
 ## Table of Contents
 1. [The Basics: Loading & Saving](#the-basics-loading--saving)
