@@ -284,7 +284,7 @@ class InteractiveLabel(QLabel):
     def paintEvent(self, event):
         painter = QPainter(self)
         if self.base_pixmap.isNull():
-            painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "Load, Paste, or Drag & Drop an Image")
+            painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "*")
             return
 
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
@@ -306,11 +306,12 @@ class MainWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Background Remover AK")
+        self.setWindowTitle("Background Remover v1.0")
         self.setGeometry(100, 100, 1000, 500)
         self.temp_files_to_clean = []
         
         self.original_pil_image, self.current_pil_image = None, None
+        self.reference_pil_for_paste = None
         self.original_qpixmap, self.current_qpixmap = None, None
         
         self.background_color = None # QColor or None
@@ -545,6 +546,7 @@ class MainWindow(QMainWindow):
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         try:
             self.original_pil_image = pil_image.convert('RGBA')
+            self.reference_pil_for_paste = self.original_pil_image.copy()
             self.current_pil_image = self.original_pil_image.copy()
             self.original_qpixmap = pil_to_qpixmap(self.original_pil_image)
             self.current_qpixmap = self.original_qpixmap.copy()
@@ -710,6 +712,7 @@ class MainWindow(QMainWindow):
     def reset_image(self):
         if self.original_pil_image:
             self.background_color = None 
+            self.reference_pil_for_paste = self.original_pil_image.copy()
             self._set_current_image(self.original_pil_image.copy(), "Reset")
             self.image_label_preview.fit_to_view()
             self.statusBar.showMessage("Image reset to original.", 3000)
@@ -797,6 +800,8 @@ class MainWindow(QMainWindow):
         if not crop_qrect or crop_qrect.isEmpty():
             QMessageBox.warning(self, "Warning", "No crop area selected."); return
         box = (crop_qrect.left(), crop_qrect.top(), crop_qrect.right(), crop_qrect.bottom())
+        if self.reference_pil_for_paste:
+            self.reference_pil_for_paste = self.reference_pil_for_paste.crop(box)
         def operation(img):
             cropped_img = img.crop(box)
             QTimer.singleShot(0, self.image_label_preview.fit_to_view)
@@ -918,7 +923,7 @@ class MainWindow(QMainWindow):
             mask_pil = qimage_to_pil(overlay_pixmap.toImage())
             keep_mask = mask_pil.getchannel('G')
             if np.any(np.array(keep_mask)):
-                img.paste(self.original_pil_image, (0, 0), keep_mask)
+                img.paste(self.reference_pil_for_paste, (0, 0), keep_mask)
             remove_mask = mask_pil.getchannel('R')
             if np.any(np.array(remove_mask)):
                 alpha = img.getchannel('A')
