@@ -34,11 +34,12 @@ from PySide6.QtCore import Qt, QPoint, QRect, QBuffer, QByteArray, QSize, Signal
 
 # --- Optional Imports with Fallbacks ---
 try:
-    from rembg import remove as remove_bg
+    from rembg import remove as remove_bg, new_session 
     REMBG_AVAILABLE = True
 except ImportError:
     REMBG_AVAILABLE = False
     def remove_bg(*args, **kwargs): raise ImportError("rembg library is not installed.")
+    def new_session(*args, **kwargs): raise ImportError("rembg library is not installed.")
 
 # <<<--- MODIFICATION: Add SciPy for fast Magic Wand
 try:
@@ -319,6 +320,7 @@ class MainWindow(QMainWindow):
         self.undo_stack, self.redo_stack = [], []
 
         self.rembg_model = "u2net"
+        self.rembg_sessions = {}
         self.alpha_matting_enabled = False
         self.fg_threshold, self.bg_threshold, self.erode_size = 240, 10, 10
         self.brush_size = 20
@@ -380,12 +382,15 @@ class MainWindow(QMainWindow):
         rembg_layout = QFormLayout(rembg_group)
         self.btn_rembg = QPushButton("Remove Background")
         self.model_combo = QComboBox(); self.model_combo.addItems(["u2net", "u2netp", "u2net_human_seg", "silueta", "isnet-general-use", "isnet-anime"])
+        self.btn_download_models = QPushButton("Download/Check All Models")
+        self.btn_download_models.setToolTip("Pre-downloads all listed rembg models for offline use or to prevent delays.")
         self.cb_alpha_matting = QCheckBox("Enable Alpha Matting")
         self.spin_fg_thresh = QSpinBox(); self.spin_fg_thresh.setRange(1, 254); self.spin_fg_thresh.setValue(self.fg_threshold)
         self.spin_bg_thresh = QSpinBox(); self.spin_bg_thresh.setRange(1, 254); self.spin_bg_thresh.setValue(self.bg_threshold)
         self.spin_erode_size = QSpinBox(); self.spin_erode_size.setRange(0, 50); self.spin_erode_size.setValue(self.erode_size)
         rembg_layout.addRow(self.btn_rembg)
         rembg_layout.addRow("Model:", self.model_combo)
+        rembg_layout.addRow(self.btn_download_models)
         rembg_layout.addRow(self.cb_alpha_matting)
         rembg_layout.addRow("FG Threshold:", self.spin_fg_thresh)
         rembg_layout.addRow("BG Threshold:", self.spin_bg_thresh)
@@ -468,11 +473,60 @@ class MainWindow(QMainWindow):
         main_splitter.setSizes([950, 350])
         self.setCentralWidget(main_splitter)
 
-    # ... (_create_status_bar and _connect_signals are unchanged) ...
+    def download_all_models(self):
+        """Downloads all rembg models listed in the combobox."""
+        if not REMBG_AVAILABLE:
+            QMessageBox.warning(self, "Feature Disabled", "The 'rembg' library is not installed.")
+            return
+
+        model_list = [self.model_combo.itemText(i) for i in range(self.model_combo.count())]
+        if not model_list:
+            QMessageBox.information(self, "No Models", "There are no models listed to download.")
+            return
+
+        self.btn_download_models.setEnabled(False)
+        self.statusBar.showMessage("Starting model download process...")
+
+        progress = QProgressDialog("Downloading models...", "Cancel", 0, len(model_list), self)
+        progress.setWindowModality(Qt.WindowModal)
+        progress.setWindowTitle("Please Wait")
+        progress.show()
+
+        try:
+            for i, model_name in enumerate(model_list):
+                progress.setValue(i)
+                progress.setLabelText(f"Checking/Downloading: {model_name} ({i+1}/{len(model_list)})")
+                QApplication.processEvents() # Keep UI responsive
+
+                if progress.wasCanceled():
+                    self.statusBar.showMessage("Model download canceled by user.", 5000)
+                    break
+
+                if model_name in self.rembg_sessions:
+                    # Already loaded in this session, skip.
+                    continue
+                
+                try:
+                    # This line triggers the download if not cached, then loads it.
+                    self.rembg_sessions[model_name] = new_session(model_name)
+                except Exception as e:
+                    QMessageBox.warning(self, "Download Error", f"Failed to download or load model '{model_name}':\n{e}")
+                    # Continue to the next model
+            else: # This 'else' belongs to the 'for' loop, it runs if the loop wasn't 'break'-ed
+                self.statusBar.showMessage("All models are checked and available.", 5000)
+
+        finally:
+            progress.setValue(len(model_list))
+            progress.close()
+            self.btn_download_models.setEnabled(True)
     def _create_status_bar(self):
         self.statusBar = QStatusBar()
         self.setStatusBar(self.statusBar)
         self.statusBar.showMessage("Ready. Load an image, paste from clipboard, or drag & drop a file.")
+
+    def _on_model_changed(self, model_name: str):
+        """Slot to handle the model selection changing."""
+        self.rembg_model = model_name
 
     def _connect_signals(self):
         self.action_open.triggered.connect(self.open_image)
@@ -489,7 +543,8 @@ class MainWindow(QMainWindow):
         self.action_info.triggered.connect(lambda: QDesktopServices.openUrl(QUrl("https://github.com/Anindya-Karmaker/Background_Remover_AK")))
 
         self.btn_rembg.clicked.connect(self.run_rembg)
-        self.model_combo.currentTextChanged.connect(lambda m: setattr(self, 'rembg_model', m))
+        self.btn_download_models.clicked.connect(self.download_all_models)
+        self.model_combo.currentTextChanged.connect(self._on_model_changed)
         self.cb_alpha_matting.stateChanged.connect(lambda s: setattr(self, 'alpha_matting_enabled', bool(s)) or self._update_ui_states())
         self.btn_mode_crop.clicked.connect(lambda: self.set_interaction_mode(InteractiveLabel.MODE_CROP))
         self.btn_apply_crop.clicked.connect(self.apply_crop)
@@ -659,11 +714,17 @@ class MainWindow(QMainWindow):
         # <<<--- END MODIFICATION
         
         main_actions = [self.action_save, self.action_copy, self.action_reset, self.btn_rembg,
-                        self.btn_mode_crop, self.btn_apply_crop, self.btn_mode_keep,
+                        self.btn_download_models, self.btn_mode_crop, self.btn_apply_crop, self.btn_mode_keep,
                         self.btn_mode_remove, self.btn_select_color, self.btn_apply_color_remove,
                         self.btn_apply_mask, self.btn_show_original]
-        for action in main_actions:
+        for action in [self.action_save, self.action_copy, self.action_reset, self.btn_mode_crop, 
+                       self.btn_apply_crop, self.btn_mode_keep, self.btn_mode_remove, 
+                       self.btn_select_color, self.btn_apply_mask, self.btn_show_original]:
             action.setEnabled(has_image)
+
+        rembg_enabled = REMBG_AVAILABLE
+        self.btn_rembg.setEnabled(has_image and rembg_enabled)
+        self.btn_download_models.setEnabled(rembg_enabled)
 
         if not REMBG_AVAILABLE: self.btn_rembg.setEnabled(False); self.btn_rembg.setText("rembg not installed")
         
@@ -786,14 +847,45 @@ class MainWindow(QMainWindow):
             self.open_image(path)
 
     def run_rembg(self):
-        if not REMBG_AVAILABLE: return
+        if not REMBG_AVAILABLE:
+            QMessageBox.warning(self, "Feature Disabled", "The 'rembg' library is not installed. This feature is unavailable.")
+            return
+
+        # --- This entire function is rewritten for correctness and performance ---
+
+        model_name = self.rembg_model
+
+        # Check if we have already loaded this model session
+        if model_name not in self.rembg_sessions:
+            progress = QProgressDialog(f"Loading model '{model_name}'...", None, 0, 0, self)
+            progress.setWindowModality(Qt.WindowModal)
+            progress.setCancelButton(None)
+            progress.setWindowTitle("Please Wait")
+            progress.show()
+            QApplication.processEvents() # Ensure the dialog is shown
+
+            try:
+                # This is where the model is loaded (and downloaded if it's the first time)
+                self.rembg_sessions[model_name] = new_session(model_name)
+                progress.close()
+            except Exception as e:
+                progress.close()
+                # This can happen if the model name is invalid or there's a network issue
+                QMessageBox.critical(self, "Model Load Error", f"Failed to load rembg model '{model_name}':\n{e}")
+                return
+
+        # Now we have a guaranteed valid session for the selected model
+        session = self.rembg_sessions[model_name]
+
         def operation(img):
             return remove_bg(img,
-                model=self.rembg_model, alpha_matting=self.alpha_matting_enabled,
+                session=session, # Use the explicit session instead of the model name
+                alpha_matting=self.alpha_matting_enabled,
                 alpha_matting_foreground_threshold=self.spin_fg_thresh.value(),
                 alpha_matting_background_threshold=self.spin_bg_thresh.value(),
                 alpha_matting_erode_size=self.spin_erode_size.value())
-        self._perform_operation(operation, "Before Background Removal", "Removing Background...")
+
+        self._perform_operation(operation, f"Before BG Removal ({model_name})", "Removing Background...")
     
     def apply_crop(self):
         crop_qrect = self.image_label_preview.get_crop_rect()
