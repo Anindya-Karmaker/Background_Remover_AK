@@ -91,7 +91,7 @@ pip install pyinstaller
 
 ### 2. Download the Models (Crucial Step)
 
-Before compiling, you **must** run the script at least once (`python BACKGROUND_REMOVER_AK.py`) to ensure the `rembg` models are downloaded to your user directory. PyInstaller needs these files to bundle them into your application.
+Before compiling, you **must** run the script at least once (`python BACKGROUND_REMOVER_AK.py`) and click **Download/check all models** to ensure the `rembg` models are downloaded to your user directory. PyInstaller needs these files to bundle them into your application.
 
 ### 3. Compile the Application
 
@@ -150,7 +150,7 @@ Before compiling, you **must** run the script at least once (`python BACKGROUND_
 ## Acknowledgements
 
 *   This tool is powered by the incredible [**rembg** library](https://github.com/danielgatis/rembg) by Daniel Gatis.
-*   The sample cell image is provided by the [NIH NIAID Bioart collection](https://bioart.niaid.nih.gov/bioart/231) (Credit: NIAID).
+*   The sample image is provided by the [NIH NIAID Bioart collection](https://bioart.niaid.nih.gov/bioart/231) (Credit: NIAID).
 
 ## License
 
