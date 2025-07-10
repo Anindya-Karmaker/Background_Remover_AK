@@ -181,12 +181,13 @@ class InteractiveLabel(QLabel):
         self.wand_selection_mask = None
         self.update()
 
-    def set_wand_preview(self, mask_pil):
+    def set_wand_preview(self, mask_pil, color=None):
         self.clear_wand_selection()
         if mask_pil is None: return
 
         self.wand_selection_mask = mask_pil
-        preview_color = QColor(0, 150, 255, 100) # Semi-transparent blue
+        # Use the provided color or default to blue
+        preview_color = color if color is not None else QColor(0, 150, 255, 100) 
         mask_np = np.array(mask_pil)
         color_img_np = np.zeros((mask_np.shape[0], mask_np.shape[1], 4), dtype=np.uint8)
         color_img_np[:,:,0] = preview_color.red()
@@ -314,6 +315,7 @@ class MainWindow(QMainWindow):
         self.original_pil_image, self.current_pil_image = None, None
         self.reference_pil_for_paste = None
         self.original_qpixmap, self.current_qpixmap = None, None
+        self.last_wand_point = None
         
         self.background_color = None # QColor or None
 
@@ -429,7 +431,7 @@ class MainWindow(QMainWindow):
             self.btn_magic_wand.setToolTip("Functionality disabled: 'scipy' library not found.\n(Run: pip install scipy)")
         # <<<--- END MODIFICATION
             
-        self.wand_tolerance_spin = QSpinBox(); self.wand_tolerance_spin.setRange(0, 255); self.wand_tolerance_spin.setValue(20)
+        self.wand_tolerance_spin = QSpinBox(); self.wand_tolerance_spin.setRange(0, 255); self.wand_tolerance_spin.setValue(20); self.wand_tolerance_spin.setKeyboardTracking(False);
         wand_tolerance_layout = QHBoxLayout(); wand_tolerance_layout.addWidget(QLabel("Tolerance:")); wand_tolerance_layout.addWidget(self.wand_tolerance_spin)
         self.btn_apply_wand_remove = QPushButton("Remove Selected Area (Delete)")
         self.btn_apply_wand_keep = QPushButton("Keep Selected Area (Remove BG)")
@@ -447,7 +449,7 @@ class MainWindow(QMainWindow):
         self.selected_color_rgb = None
         color_select_layout = QHBoxLayout(); color_select_layout.addWidget(self.btn_select_color, 1); color_select_layout.addWidget(self.color_preview)
         other_tools_layout.addLayout(color_select_layout)
-        self.tolerance_spin = QSpinBox(); self.tolerance_spin.setRange(0, 255); self.tolerance_spin.setValue(30)
+        self.tolerance_spin = QSpinBox(); self.tolerance_spin.setRange(0, 255); self.tolerance_spin.setValue(30);  self.tolerance_spin.setKeyboardTracking(False);
         tolerance_layout = QHBoxLayout(); tolerance_layout.addWidget(QLabel("Tolerance:")); tolerance_layout.addWidget(self.tolerance_spin)
         other_tools_layout.addLayout(tolerance_layout)
         self.btn_apply_color_remove = QPushButton("Remove Selected Color")
@@ -555,10 +557,12 @@ class MainWindow(QMainWindow):
         
         self.btn_magic_wand.clicked.connect(lambda: self.set_interaction_mode(InteractiveLabel.MODE_WAND))
         self.image_label_preview.wand_point_selected.connect(self.calculate_wand_selection)
+        self.wand_tolerance_spin.valueChanged.connect(self._on_wand_tolerance_changed) 
         self.btn_apply_wand_remove.clicked.connect(self.apply_wand_remove)
         self.btn_apply_wand_keep.clicked.connect(self.apply_wand_keep)
 
         self.btn_select_color.clicked.connect(self.select_color_to_remove)
+        self.tolerance_spin.valueChanged.connect(self._update_color_removal_preview)
         self.btn_apply_color_remove.clicked.connect(self.apply_color_removal)
         self.btn_fill_bg.clicked.connect(self.fill_background)
         self.btn_remove_fill.clicked.connect(self.remove_background_color)
@@ -573,6 +577,32 @@ class MainWindow(QMainWindow):
         }
 
     # ... (most of MainWindow methods are unchanged until _update_ui_states) ...
+    def _on_wand_tolerance_changed(self):
+        """Recalculates the Magic Wand selection when its tolerance is changed."""
+        if self.image_label_preview.current_mode == InteractiveLabel.MODE_WAND and self.last_wand_point:
+            self.calculate_wand_selection(self.last_wand_point)
+
+    def _update_color_removal_preview(self):
+        """Generates and displays a preview of the color removal operation."""
+        if not self.current_pil_image or self.selected_color_rgb is None:
+            self.image_label_preview.clear_wand_selection()
+            return
+
+        # Use a red overlay for the removal preview
+        preview_color = QColor(255, 0, 0, 100)
+        
+        # This logic is a non-destructive copy of apply_color_removal
+        img = self.current_pil_image.convert("RGB")
+        data = np.array(img)
+        rgb = data[:, :, :3]
+        
+        diff_sq = np.sum((rgb.astype(np.int32) - np.array(self.selected_color_rgb))**2, axis=2)
+        mask_np = diff_sq <= self.tolerance_spin.value()**2
+        
+        mask_pil = Image.fromarray(mask_np.astype(np.uint8) * 255, 'L')
+
+        # We can reuse the wand preview mechanism for this
+        self.image_label_preview.set_wand_preview(mask_pil, color=preview_color)
     def _show_original_image_fast(self):
         if self.original_qpixmap:
             self.image_label_preview.set_display_pixmap(self.original_qpixmap)
@@ -588,11 +618,15 @@ class MainWindow(QMainWindow):
     def _push_state(self, pil_image, description=""):
         if pil_image is None: return
         if len(self.undo_stack) >= self.MAX_HISTORY: self.undo_stack.pop(0)
+        # --- THE FIX ---
+        # Also save the state of the reference image used for paste operations.
         state = {
             "image": pil_image.copy(),
+            "ref_image": self.reference_pil_for_paste.copy(), # ADDED THIS
             "desc": description,
             "bg_color": self.background_color
         }
+        # ---------------
         self.undo_stack.append(state)
         self.redo_stack.clear()
         self._update_ui_states()
@@ -664,6 +698,7 @@ class MainWindow(QMainWindow):
         last_state = self.undo_stack[-1]
         
         self.current_pil_image = last_state["image"]
+        self.reference_pil_for_paste = last_state["ref_image"]
         self.current_qpixmap = pil_to_qpixmap(self.current_pil_image)
         self.background_color = last_state["bg_color"]
 
@@ -678,6 +713,7 @@ class MainWindow(QMainWindow):
         self.undo_stack.append(next_state)
 
         self.current_pil_image = next_state["image"]
+        self.reference_pil_for_paste = next_state["ref_image"]
         self.current_qpixmap = pil_to_qpixmap(self.current_pil_image)
         self.background_color = next_state["bg_color"]
         
@@ -746,6 +782,9 @@ class MainWindow(QMainWindow):
 
     # ... (set_interaction_mode and other methods are unchanged until the wand functions) ...
     def set_interaction_mode(self, mode_to_set, force_off=False):
+        if self.image_label_preview.current_mode != mode_to_set:
+            self.image_label_preview.clear_wand_selection()
+            self.last_wand_point = None
         active_button = self.mode_buttons.get(mode_to_set)
         if force_off:
             current_mode = InteractiveLabel.MODE_NONE
@@ -888,20 +927,58 @@ class MainWindow(QMainWindow):
         self._perform_operation(operation, f"Before BG Removal ({model_name})", "Removing Background...")
     
     def apply_crop(self):
+        if not self.current_pil_image:
+            return
+
         crop_qrect = self.image_label_preview.get_crop_rect()
         if not crop_qrect or crop_qrect.isEmpty():
-            QMessageBox.warning(self, "Warning", "No crop area selected."); return
-        box = (crop_qrect.left(), crop_qrect.top(), crop_qrect.right(), crop_qrect.bottom())
-        if self.reference_pil_for_paste:
-            self.reference_pil_for_paste = self.reference_pil_for_paste.crop(box)
-        def operation(img):
-            cropped_img = img.crop(box)
+            QMessageBox.warning(self, "Warning", "No crop area selected.")
+            return
+
+        # --- THIS IS THE CORRECTED LOGIC ---
+        
+        # 1. Manually push the "Before Crop" state to the undo stack.
+        #    This saves the state of BOTH images *before* they are modified.
+        self._push_state(self.current_pil_image.copy(), "Crop")
+
+        progress = QProgressDialog("Cropping...", None, 0, 0, self)
+        progress.setWindowModality(Qt.WindowModality.WindowModal)
+        progress.setCancelButton(None)
+        progress.show()
+        QApplication.processEvents()
+
+        try:
+            box = (crop_qrect.left(), crop_qrect.top(), crop_qrect.right(), crop_qrect.bottom())
+
+            # 2. Perform the crop on BOTH the current image and the reference image.
+            self.current_pil_image = self.current_pil_image.crop(box)
+            if self.reference_pil_for_paste:
+                self.reference_pil_for_paste = self.reference_pil_for_paste.crop(box)
+            
+            # 3. Update the display with the new, cropped image.
+            self.current_qpixmap = pil_to_qpixmap(self.current_pil_image)
+            self._update_display()
+            
+            # 4. Schedule the view to be fitted after the current event loop finishes.
             QTimer.singleShot(0, self.image_label_preview.fit_to_view)
-            return cropped_img
-        self._perform_operation(operation, "Before Crop", "Cropping...")
+
+            self.statusBar.showMessage("Crop applied.", 5000)
+
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Crop operation failed: {e}")
+            # If the crop fails, undo the state push to return to the previous state.
+            self.undo_state()
+            
+        finally:
+            # 5. Clean up the UI state.
+            progress.close()
+            self.image_label_preview.clear_interaction_state()
+            self._update_ui_states()
+            self.set_interaction_mode(InteractiveLabel.MODE_NONE, force_off=True)
 
     # <<<--- MODIFICATION: Complete rewrite of Magic Wand calculation for speed
     def calculate_wand_selection(self, start_point):
+        self.last_wand_point = start_point
         """Performs a flood-fill from the start_point using scipy for high performance."""
         if self.current_pil_image is None: return
         if not SCIPY_AVAILABLE:
@@ -992,6 +1069,7 @@ class MainWindow(QMainWindow):
             self.selected_color_rgb = color.getRgb()[:3]
             self.color_preview.setText(f" R:{color.red()} G:{color.green()} B:{color.blue()}")
             self.color_preview.setStyleSheet(f"background-color: {color.name()}; border: 1px solid grey; padding: 5px;")
+            self._update_color_removal_preview()
         self._update_ui_states()
 
     def apply_color_removal(self):
@@ -1004,6 +1082,7 @@ class MainWindow(QMainWindow):
             data[:,:,3] = alpha
             return Image.fromarray(data, 'RGBA')
         self._perform_operation(operation, "Before Color Removal", "Removing Color...")
+        self.image_label_preview.clear_wand_selection()
 
     def apply_mask_refinement(self):
         overlay_pixmap = self.image_label_preview.get_overlay_pixmap()
