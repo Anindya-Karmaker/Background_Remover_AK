@@ -49,6 +49,14 @@ except ImportError:
     SCIPY_AVAILABLE = False
 # <<<--- END MODIFICATION
 
+# <<<--- MODIFICATION: Add OpenCV for Perspective Correction
+try:
+    import cv2
+    CV2_AVAILABLE = True
+except ImportError:
+    CV2_AVAILABLE = False
+# <<<--- END MODIFICATION
+
 from PIL import Image, ImageDraw, ImageQt
 
 # ... (The rest of the helper functions remain the same) ...
@@ -98,10 +106,11 @@ def create_brush_cursor(diameter, color):
 
 # ... (InteractiveLabel class remains the same until the end) ...
 class InteractiveLabel(QLabel):
-    MODE_NONE, MODE_KEEP, MODE_REMOVE, MODE_CROP, MODE_WAND = 0, 1, 2, 3, 4 # Added MODE_WAND
+    MODE_NONE, MODE_KEEP, MODE_REMOVE, MODE_CROP, MODE_WAND, MODE_PERSPECTIVE = 0, 1, 2, 3, 4, 5
     interaction_started = Signal()
     stroke_committed = Signal(QPixmap)
     wand_point_selected = Signal(QPoint) # Signal for Magic Wand clicks
+    perspective_points_changed = Signal(list) # Signal for perspective point selection
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -115,6 +124,9 @@ class InteractiveLabel(QLabel):
         self.zoom_level = 1.0
         self.brush_size = 10
         self.scroll_area = None
+        self.perspective_points = []  # Stores 6 QPoints for perspective correction
+        self.dragging_point_idx = -1  # Index of the point being dragged
+        self.DRAG_THRESHOLD = 20      # Radius for point detection in pixels (view coords)
 
         self.setMouseTracking(True)
         self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Ignored)
@@ -163,17 +175,29 @@ class InteractiveLabel(QLabel):
     def set_mode(self, mode):
         if self.current_mode == self.MODE_WAND and mode != self.MODE_WAND:
             self.clear_wand_selection()
+        if self.current_mode == self.MODE_PERSPECTIVE and mode != self.MODE_PERSPECTIVE:
+            self.clear_perspective_points()
             
         self.current_mode = mode if self.current_mode != mode else self.MODE_NONE
         if self.current_mode != self.MODE_CROP:
             self.crop_rect_visual = None
+        if self.current_mode != self.MODE_PERSPECTIVE:
+            self.dragging_point_idx = -1
         self.update_cursor()
         self.update()
 
     def clear_interaction_state(self):
         self.crop_rect_visual, self.drawing, self.cropping = None, False, False
+        self.dragging_point_idx = -1
         self.clear_overlay()
         self.clear_wand_selection()
+        self.clear_perspective_points()
+
+    def clear_perspective_points(self):
+        """Clear all perspective correction points."""
+        self.perspective_points = []
+        self.perspective_points_changed.emit([])
+        self.update()
 
     def clear_wand_selection(self):
         if not self.wand_preview_pixmap.isNull():
@@ -225,7 +249,9 @@ class InteractiveLabel(QLabel):
         elif self.current_mode == self.MODE_CROP:
             self.setCursor(Qt.CursorShape.CrossCursor)
         elif self.current_mode == self.MODE_WAND:
-            self.setCursor(Qt.CursorShape.CrossCursor) 
+            self.setCursor(Qt.CursorShape.CrossCursor)
+        elif self.current_mode == self.MODE_PERSPECTIVE:
+            self.setCursor(Qt.CursorShape.CrossCursor)
         else: self.setCursor(Qt.CursorShape.ArrowCursor)
 
     def mousePressEvent(self, event):
@@ -243,6 +269,22 @@ class InteractiveLabel(QLabel):
             self.update()
         elif self.current_mode == self.MODE_WAND:
             self.wand_point_selected.emit(self.map_to_image(event.pos()))
+        elif self.current_mode == self.MODE_PERSPECTIVE:
+            # Check if we are clicking near an existing point to drag it
+            found_idx = -1
+            for idx, pt in enumerate(self.perspective_points):
+                view_pt = QPoint(int(pt.x() * self.zoom_level), int(pt.y() * self.zoom_level))
+                if (event.pos() - view_pt).manhattanLength() < self.DRAG_THRESHOLD:
+                    found_idx = idx
+                    break
+            
+            if found_idx != -1:
+                self.dragging_point_idx = found_idx
+            elif len(self.perspective_points) < 6:
+                img_point = self.map_to_image(event.pos())
+                self.perspective_points.append(img_point)
+                self.perspective_points_changed.emit(self.perspective_points)
+                self.update()
 
 
     def mouseMoveEvent(self, event):
@@ -253,6 +295,12 @@ class InteractiveLabel(QLabel):
         elif self.cropping:
             self.crop_end_point = event.pos()
             self.update()
+        elif self.dragging_point_idx != -1:
+            # Update the point position while dragging
+            new_img_point = self.map_to_image(event.pos())
+            self.perspective_points[self.dragging_point_idx] = new_img_point
+            self.perspective_points_changed.emit(self.perspective_points)
+            self.update()
 
     def mouseReleaseEvent(self, event):
         if not self.isEnabled() or event.button() != Qt.MouseButton.LeftButton: return
@@ -262,6 +310,9 @@ class InteractiveLabel(QLabel):
         elif self.cropping:
             self.cropping = False
             self.crop_rect_visual = QRect(self.crop_start_point, self.crop_end_point).normalized()
+            self.update()
+        elif self.dragging_point_idx != -1:
+            self.dragging_point_idx = -1
             self.update()
 
     def _draw_on_overlay(self, start_point, end_point):
@@ -301,6 +352,38 @@ class InteractiveLabel(QLabel):
             painter.setPen(pen); painter.setBrush(Qt.BrushStyle.NoBrush)
             rect = self.crop_rect_visual if not self.cropping else QRect(self.crop_start_point, self.crop_end_point).normalized()
             painter.drawRect(rect)
+        
+        # Draw perspective correction points
+        if self.perspective_points:
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+            # Draw polygon connecting points in order: 1-5-2, 2-3, 3-6-4, 4-1, 5-6
+            if len(self.perspective_points) >= 2:
+                pen = QPen(QColor(255, 165, 0, 220), 2, Qt.PenStyle.SolidLine)
+                painter.setPen(pen)
+                # Draw lines based on available points
+                pts = self.perspective_points
+                connections = [(0,4), (4,1), (1,2), (2,5), (5,3), (3,0), (4,5)]  # Outer + middle line
+                for i, j in connections:
+                    if i < len(pts) and j < len(pts):
+                        p1 = QPoint(int(pts[i].x() * self.zoom_level), int(pts[i].y() * self.zoom_level))
+                        p2 = QPoint(int(pts[j].x() * self.zoom_level), int(pts[j].y() * self.zoom_level))
+                        painter.drawLine(p1, p2)
+            
+            # Draw numbered points
+            point_labels = ['1', '2', '3', '4', '5', '6']  # TL, TR, BR, BL, TM, BM
+            for idx, pt in enumerate(self.perspective_points):
+                view_pt = QPoint(int(pt.x() * self.zoom_level), int(pt.y() * self.zoom_level))
+                # Draw circle
+                painter.setPen(QPen(QColor(255, 255, 255), 2))
+                painter.setBrush(QBrush(QColor(255, 100, 0, 200)))
+                painter.drawEllipse(view_pt, 12, 12)
+                # Draw number
+                painter.setPen(QPen(QColor(255, 255, 255)))
+                font = painter.font()
+                font.setBold(True)
+                font.setPointSize(10)
+                painter.setFont(font)
+                painter.drawText(view_pt.x() - 4, view_pt.y() + 4, point_labels[idx])
 
 # ... (MainWindow __init__, _create_actions, _create_toolbars are unchanged) ...
 class MainWindow(QMainWindow):
@@ -308,8 +391,8 @@ class MainWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Background Remover v1.0")
-        self.setGeometry(100, 100, 1000, 500)
+        self.setWindowTitle("Background Remover v2.0")
+        self.setGeometry(100, 100, 1200, 800)
         self.temp_files_to_clean = []
         
         self.original_pil_image, self.current_pil_image = None, None
@@ -399,7 +482,13 @@ class MainWindow(QMainWindow):
         rembg_layout.addRow("Erode Size:", self.spin_erode_size)
         ai_tools_layout.addWidget(rembg_group)
         ai_tools_layout.addStretch()
-        tab_widget.addTab(ai_tools_widget, "AI Tools")
+        
+        # Make AI Tools scrollable
+        ai_scroll = QScrollArea()
+        ai_scroll.setWidget(ai_tools_widget)
+        ai_scroll.setWidgetResizable(True)
+        ai_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        tab_widget.addTab(ai_scroll, "AI Tools")
 
         manual_edit_widget = QWidget()
         manual_edit_layout = QVBoxLayout(manual_edit_widget)
@@ -441,6 +530,62 @@ class MainWindow(QMainWindow):
         magic_wand_layout.addWidget(self.btn_apply_wand_keep)
         manual_edit_layout.addWidget(magic_wand_group)
         
+        # <<< Perspective Correction Group >>>
+        perspective_group = QGroupBox("Perspective Correction (Document Scanner)")
+        perspective_layout = QVBoxLayout(perspective_group)
+        self.btn_perspective_mode = QPushButton("Select 6 Points"); self.btn_perspective_mode.setCheckable(True)
+        if not CV2_AVAILABLE:
+            self.btn_perspective_mode.setToolTip("Functionality disabled: 'opencv-python' library not found.\n(Run: pip install opencv-python)")
+        self.perspective_status_label = QLabel("Points: 0/6")
+        self.perspective_status_label.setStyleSheet("color: #666; font-style: italic;")
+        perspective_info = QLabel("Click: 1-TL, 2-TR, 3-BR, 4-BL, 5-Top Mid, 6-Bot Mid")
+        perspective_info.setStyleSheet("color: #888; font-size: 10px;")
+        perspective_info.setWordWrap(True)
+        self.btn_clear_perspective = QPushButton("Clear Points")
+        self.btn_apply_perspective = QPushButton("Apply Correction")
+        perspective_btns = QHBoxLayout(); perspective_btns.addWidget(self.btn_clear_perspective); perspective_btns.addWidget(self.btn_apply_perspective)
+        perspective_layout.addWidget(self.btn_perspective_mode)
+        
+        # Enhanced Instructions for Perspective
+        instr_group = QGroupBox("Instructions")
+        instr_layout = QVBoxLayout(instr_group)
+        steps = [
+            "1. Click 'Select 6 Points' button.",
+            "2. Click on the 4 corners (TL, TR, BR, BL).",
+            "3. Click on the 2 middle fold points (TM, BM).",
+            "4. Drag points if adjustment is needed.",
+            "5. Click 'Apply Correction'."
+        ]
+        for s in steps:
+            l = QLabel(s); l.setStyleSheet("font-size: 10px; color: #555;")
+            instr_layout.addWidget(l)
+        perspective_layout.addWidget(instr_group)
+        
+        perspective_layout.addWidget(self.perspective_status_label)
+        perspective_layout.addWidget(perspective_info)
+        perspective_layout.addLayout(perspective_btns)
+        manual_edit_layout.addWidget(perspective_group)
+        
+        # <<< Image Transformations Group >>>
+        transform_group = QGroupBox("Image Transformations")
+        transform_layout = QVBoxLayout(transform_group)
+        
+        rotate_layout = QHBoxLayout()
+        self.btn_rotate_ccw = QPushButton("Rotate 90° ↺")
+        self.btn_rotate_cw = QPushButton("Rotate 90° ↻")
+        rotate_layout.addWidget(self.btn_rotate_ccw)
+        rotate_layout.addWidget(self.btn_rotate_cw)
+        
+        flip_layout = QHBoxLayout()
+        self.btn_flip_h = QPushButton("Flip Horizontal ↔")
+        self.btn_flip_v = QPushButton("Flip Vertical ↕")
+        flip_layout.addWidget(self.btn_flip_h)
+        flip_layout.addWidget(self.btn_flip_v)
+        
+        transform_layout.addLayout(rotate_layout)
+        transform_layout.addLayout(flip_layout)
+        manual_edit_layout.addWidget(transform_group)
+        
         # ... (rest of _create_layout is unchanged) ...
         other_tools_group = QGroupBox("Other Manual Tools")
         other_tools_layout = QVBoxLayout(other_tools_group)
@@ -465,7 +610,13 @@ class MainWindow(QMainWindow):
         manual_edit_layout.addWidget(other_tools_group)
 
         manual_edit_layout.addStretch()
-        tab_widget.addTab(manual_edit_widget, "Manual Edit")
+        
+        # Make Manual Edit scrollable
+        manual_scroll = QScrollArea()
+        manual_scroll.setWidget(manual_edit_widget)
+        manual_scroll.setWidgetResizable(True)
+        manual_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        tab_widget.addTab(manual_scroll, "Manual Edit")
 
         control_layout.addWidget(tab_widget)
         
@@ -573,14 +724,116 @@ class MainWindow(QMainWindow):
             InteractiveLabel.MODE_KEEP: self.btn_mode_keep,
             InteractiveLabel.MODE_REMOVE: self.btn_mode_remove,
             InteractiveLabel.MODE_CROP: self.btn_mode_crop,
-            InteractiveLabel.MODE_WAND: self.btn_magic_wand, 
+            InteractiveLabel.MODE_WAND: self.btn_magic_wand,
+            InteractiveLabel.MODE_PERSPECTIVE: self.btn_perspective_mode,
         }
+        
+        # Perspective correction connections
+        self.btn_perspective_mode.clicked.connect(lambda: self.set_interaction_mode(InteractiveLabel.MODE_PERSPECTIVE))
+        self.image_label_preview.perspective_points_changed.connect(self._on_perspective_points_changed)
+        self.btn_clear_perspective.clicked.connect(self._clear_perspective_selection)
+        self.btn_apply_perspective.clicked.connect(self.apply_perspective_correction)
+        
+        # Transformation tools connections
+        self.btn_rotate_ccw.clicked.connect(lambda: self.rotate_image(90))
+        self.btn_rotate_cw.clicked.connect(lambda: self.rotate_image(-90))
+        self.btn_flip_h.clicked.connect(lambda: self.flip_image(True))
+        self.btn_flip_v.clicked.connect(lambda: self.flip_image(False))
 
     # ... (most of MainWindow methods are unchanged until _update_ui_states) ...
     def _on_wand_tolerance_changed(self):
         """Recalculates the Magic Wand selection when its tolerance is changed."""
         if self.image_label_preview.current_mode == InteractiveLabel.MODE_WAND and self.last_wand_point:
             self.calculate_wand_selection(self.last_wand_point)
+
+    def _on_perspective_points_changed(self, points):
+        """Updates the status label when perspective selection points change."""
+        self.perspective_status_label.setText(f"Points: {len(points)}/6")
+        self._update_ui_states()
+
+    def _clear_perspective_selection(self):
+        """Clears the current perspective point selection."""
+        self.image_label_preview.clear_perspective_points()
+        self.statusBar.showMessage("Perspective points cleared.", 3000)
+
+    def apply_perspective_correction(self):
+        """
+        Applies a 6-point perspective correction.
+        Splits the quadrilateral defined by 6 points into two halves (left/right)
+        at the middle line (points 5-6) and corrects each independently.
+        """
+        pts = self.image_label_preview.perspective_points
+        if len(pts) != 6:
+            QMessageBox.warning(self, "Incomplete Selection", "Please select all 6 points (4 corners + 2 middle points for the fold).")
+            return
+
+        if not CV2_AVAILABLE:
+            QMessageBox.critical(self, "Feature Unavailable", "OpenCV is required for this feature. Please install it with 'pip install opencv-python'.")
+            return
+
+        def operation(img):
+            # Convert PIL to CV2 (numpy array)
+            img_np = np.array(img.convert("RGBA"))
+            # Points: 0=TL, 1=TR, 2=BR, 3=BL, 4=TM, 5=BM
+            p_tl, p_tr, p_br, p_bl, p_tm, p_bm = [(p.x(), p.y()) for p in pts]
+
+            # Calculate dimensions for the corrected image
+            # Width is the sum of max widths of two halves
+            w_left = max(
+                np.sqrt((p_tl[0] - p_tm[0])**2 + (p_tl[1] - p_tm[1])**2),
+                np.sqrt((p_bl[0] - p_bm[0])**2 + (p_bl[1] - p_bm[1])**2)
+            )
+            w_right = max(
+                np.sqrt((p_tm[0] - p_tr[0])**2 + (p_tm[1] - p_tr[1])**2),
+                np.sqrt((p_bm[0] - p_br[0])**2 + (p_bm[1] - p_br[1])**2)
+            )
+            target_w = int(w_left + w_right)
+            
+            # Height is the max height across the whole thing
+            target_h = int(max(
+                np.sqrt((p_tl[0] - p_bl[0])**2 + (p_tl[1] - p_bl[1])**2),
+                np.sqrt((p_tr[0] - p_br[0])**2 + (p_tr[1] - p_br[1])**2),
+                np.sqrt((p_tm[0] - p_bm[0])**2 + (p_tm[1] - p_bm[1])**2)
+            ))
+
+            target_w_left = int(w_left)
+            target_w_right = target_w - target_w_left
+
+            # Left half source and destination
+            src_left = np.array([p_tl, p_tm, p_bm, p_bl], dtype=np.float32)
+            dst_left = np.array([
+                [0, 0],
+                [target_w_left, 0],
+                [target_w_left, target_h],
+                [0, target_h]
+            ], dtype=np.float32)
+
+            # Right half source and destination
+            src_right = np.array([p_tm, p_tr, p_br, p_bm], dtype=np.float32)
+            dst_right = np.array([
+                [0, 0], # Relative to the right half's origin
+                [target_w_right, 0],
+                [target_w_right, target_h],
+                [0, target_h]
+            ], dtype=np.float32)
+
+            # Perform warping for left half
+            m_left = cv2.getPerspectiveTransform(src_left, dst_left)
+            warped_left = cv2.warpPerspective(img_np, m_left, (target_w_left, target_h))
+
+            # Perform warping for right half
+            m_right = cv2.getPerspectiveTransform(src_right, dst_right)
+            warped_right = cv2.warpPerspective(img_np, m_right, (target_w_right, target_h))
+
+            # Combine the two halves
+            combined = np.zeros((target_h, target_w, 4), dtype=np.uint8)
+            combined[:, :target_w_left] = warped_left
+            combined[:, target_w_left:] = warped_right
+
+            return Image.fromarray(combined, "RGBA")
+
+        self._perform_operation(operation, "Before Perspective Correction", "Warping Image halves...")
+        self.image_label_preview.clear_perspective_points()
 
     def _update_color_removal_preview(self):
         """Generates and displays a preview of the color removal operation."""
@@ -779,6 +1032,37 @@ class MainWindow(QMainWindow):
         is_matting = self.cb_alpha_matting.isChecked()
         for spin in [self.spin_fg_thresh, self.spin_bg_thresh, self.spin_erode_size]:
             spin.setEnabled(is_matting)
+        
+        # <<< Perspective correction UI states >>>
+        perspective_enabled = has_image and CV2_AVAILABLE
+        self.btn_perspective_mode.setEnabled(perspective_enabled)
+        has_6_points = len(self.image_label_preview.perspective_points) == 6
+        self.btn_apply_perspective.setEnabled(perspective_enabled and has_6_points)
+        self.btn_clear_perspective.setEnabled(len(self.image_label_preview.perspective_points) > 0)
+
+        # Transformation states
+        self.btn_rotate_ccw.setEnabled(has_image)
+        self.btn_rotate_cw.setEnabled(has_image)
+        self.btn_flip_h.setEnabled(has_image)
+        self.btn_flip_v.setEnabled(has_image)
+
+    def rotate_image(self, degrees):
+        """Rotate the image by the specified degrees."""
+        if not self.current_pil_image: return
+        def operation(img):
+            # PIL rotate is CCW by default, but we handles angles accordingly
+            # expand=True ensures the image isn't cropped
+            return img.rotate(degrees, expand=True)
+        self._perform_operation(operation, f"Before Rotation ({degrees}°)", "Rotating...")
+
+    def flip_image(self, horizontal):
+        """Flip the image horizontally or vertically."""
+        if not self.current_pil_image: return
+        def operation(img):
+            method = Image.FLIP_LEFT_RIGHT if horizontal else Image.FLIP_TOP_BOTTOM
+            return img.transpose(method)
+        desc = "Flip Horizontal" if horizontal else "Flip Vertical"
+        self._perform_operation(operation, f"Before {desc}", "Flipping...")
 
     # ... (set_interaction_mode and other methods are unchanged until the wand functions) ...
     def set_interaction_mode(self, mode_to_set, force_off=False):

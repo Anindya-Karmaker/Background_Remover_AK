@@ -2,6 +2,7 @@ PySide6
 Pillow
 numpy
 scipy
+opencv-python
 rembg
 requests
 onnxruntime
