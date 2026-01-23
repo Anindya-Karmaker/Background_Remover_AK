@@ -32,29 +32,49 @@ from PySide6.QtGui import (
 )
 from PySide6.QtCore import Qt, QPoint, QRect, QBuffer, QByteArray, QSize, Signal, QUrl, QMimeData, QTimer
 
+# --- Debug Logging for Compiled App ---
+DEBUG_LOG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bg_remover_debug.log")
+def log_debug(msg):
+    try:
+        with open(DEBUG_LOG_PATH, "a") as f:
+            f.write(f"{msg}\n")
+    except: pass
+
+log_debug("--- App Started ---")
+
 # --- Optional Imports with Fallbacks ---
+REMBG_ERROR = None
 try:
     from rembg import remove as remove_bg, new_session 
     REMBG_AVAILABLE = True
-except ImportError:
+    log_debug("rembg loaded successfully")
+except Exception as e:
     REMBG_AVAILABLE = False
-    def remove_bg(*args, **kwargs): raise ImportError("rembg library is not installed.")
-    def new_session(*args, **kwargs): raise ImportError("rembg library is not installed.")
+    REMBG_ERROR = str(e)
+    log_debug(f"rembg load FAILED: {e}")
 
 # <<<--- MODIFICATION: Add SciPy for fast Magic Wand
+SCIPY_ERROR = None
 try:
     from scipy.ndimage import label
     SCIPY_AVAILABLE = True
-except ImportError:
+    log_debug("scipy loaded successfully")
+except Exception as e:
     SCIPY_AVAILABLE = False
+    SCIPY_ERROR = str(e)
+    log_debug(f"scipy load FAILED: {e}")
 # <<<--- END MODIFICATION
 
 # <<<--- MODIFICATION: Add OpenCV for Perspective Correction
+CV2_ERROR = None
 try:
     import cv2
     CV2_AVAILABLE = True
-except ImportError:
+    log_debug("cv2 loaded successfully")
+except Exception as e:
     CV2_AVAILABLE = False
+    CV2_ERROR = str(e)
+    log_debug(f"cv2 load FAILED: {e}")
 # <<<--- END MODIFICATION
 
 from PIL import Image, ImageDraw, ImageQt
@@ -466,9 +486,17 @@ class MainWindow(QMainWindow):
         rembg_group = QGroupBox("Background Removal (rembg)")
         rembg_layout = QFormLayout(rembg_group)
         self.btn_rembg = QPushButton("Remove Background")
+        if not REMBG_AVAILABLE:
+            error_msg = f"\n\nError: {REMBG_ERROR}" if REMBG_ERROR else ""
+            self.btn_rembg.setToolTip(f"Functionality disabled: 'rembg' library failed to load or is not installed.{error_msg}\n(Check requirements.txt and pip install rembg)")
+        
         self.model_combo = QComboBox(); self.model_combo.addItems(["u2net", "u2netp", "u2net_human_seg", "silueta", "isnet-general-use", "isnet-anime"])
         self.btn_download_models = QPushButton("Download/Check All Models")
-        self.btn_download_models.setToolTip("Pre-downloads all listed rembg models for offline use or to prevent delays.")
+        if not REMBG_AVAILABLE:
+            error_msg = f"\n\nError: {REMBG_ERROR}" if REMBG_ERROR else ""
+            self.btn_download_models.setToolTip(f"Functionality disabled: 'rembg' library failed to load.{error_msg}")
+        else:
+            self.btn_download_models.setToolTip("Pre-downloads all listed rembg models for offline use or to prevent delays.")
         self.cb_alpha_matting = QCheckBox("Enable Alpha Matting")
         self.spin_fg_thresh = QSpinBox(); self.spin_fg_thresh.setRange(1, 254); self.spin_fg_thresh.setValue(self.fg_threshold)
         self.spin_bg_thresh = QSpinBox(); self.spin_bg_thresh.setRange(1, 254); self.spin_bg_thresh.setValue(self.bg_threshold)
@@ -517,7 +545,8 @@ class MainWindow(QMainWindow):
         
         # <<<--- MODIFICATION: Add tooltip if scipy is missing
         if not SCIPY_AVAILABLE:
-            self.btn_magic_wand.setToolTip("Functionality disabled: 'scipy' library not found.\n(Run: pip install scipy)")
+            error_msg = f"\n\nError: {SCIPY_ERROR}" if SCIPY_ERROR else ""
+            self.btn_magic_wand.setToolTip(f"Functionality disabled: 'scipy' library failed to load or is not installed.{error_msg}\n(Run: pip install scipy)")
         # <<<--- END MODIFICATION
             
         self.wand_tolerance_spin = QSpinBox(); self.wand_tolerance_spin.setRange(0, 255); self.wand_tolerance_spin.setValue(20); self.wand_tolerance_spin.setKeyboardTracking(False);
@@ -535,7 +564,8 @@ class MainWindow(QMainWindow):
         perspective_layout = QVBoxLayout(perspective_group)
         self.btn_perspective_mode = QPushButton("Select 6 Points"); self.btn_perspective_mode.setCheckable(True)
         if not CV2_AVAILABLE:
-            self.btn_perspective_mode.setToolTip("Functionality disabled: 'opencv-python' library not found.\n(Run: pip install opencv-python)")
+            error_msg = f"\n\nError: {CV2_ERROR}" if CV2_ERROR else ""
+            self.btn_perspective_mode.setToolTip(f"Functionality disabled: 'opencv-python' library failed to load or is not installed.{error_msg}\n(Run: pip install opencv-python)")
         self.perspective_status_label = QLabel("Points: 0/6")
         self.perspective_status_label.setStyleSheet("color: #666; font-style: italic;")
         perspective_info = QLabel("Click: 1-TL, 2-TR, 3-BR, 4-BL, 5-Top Mid, 6-Bot Mid")
@@ -637,7 +667,7 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "No Models", "There are no models listed to download.")
             return
 
-        self.btn_download_models.setEnabled(False)
+        self.btn_download_models.setEnabled(True)
         self.statusBar.showMessage("Starting model download process...")
 
         progress = QProgressDialog("Downloading models...", "Cancel", 0, len(model_list), self)
@@ -1000,6 +1030,10 @@ class MainWindow(QMainWindow):
         # <<<--- MODIFICATION: Disable wand if scipy is missing
         magic_wand_enabled = has_image and SCIPY_AVAILABLE
         self.btn_magic_wand.setEnabled(magic_wand_enabled)
+        if not SCIPY_AVAILABLE:
+            self.btn_magic_wand.setText("Wand (Library Error)" if SCIPY_ERROR else "Wand (Not Installed)")
+        else:
+            self.btn_magic_wand.setText("Magic Wand Select")
         # <<<--- END MODIFICATION
         
         main_actions = [self.action_save, self.action_copy, self.action_reset, self.btn_rembg,
@@ -1015,7 +1049,13 @@ class MainWindow(QMainWindow):
         self.btn_rembg.setEnabled(has_image and rembg_enabled)
         self.btn_download_models.setEnabled(rembg_enabled)
 
-        if not REMBG_AVAILABLE: self.btn_rembg.setEnabled(False); self.btn_rembg.setText("rembg not installed")
+        if not REMBG_AVAILABLE: 
+            self.btn_rembg.setEnabled(False)
+            status_text = "rembg failed to load" if REMBG_ERROR else "rembg not installed"
+            self.btn_rembg.setText(status_text)
+            self.btn_download_models.setEnabled(False)
+        else:
+            self.btn_rembg.setText("Remove Background")
         
         self.btn_fill_bg.setEnabled(is_rgba)
         self.btn_remove_fill.setEnabled(is_rgba and self.background_color is not None)
@@ -1036,6 +1076,11 @@ class MainWindow(QMainWindow):
         # <<< Perspective correction UI states >>>
         perspective_enabled = has_image and CV2_AVAILABLE
         self.btn_perspective_mode.setEnabled(perspective_enabled)
+        if not CV2_AVAILABLE:
+            self.btn_perspective_mode.setText("Select 6 Points (Error)" if CV2_ERROR else "Select 6 Points (Missing)")
+        else:
+            self.btn_perspective_mode.setText("Select 6 Points")
+            
         has_6_points = len(self.image_label_preview.perspective_points) == 6
         self.btn_apply_perspective.setEnabled(perspective_enabled and has_6_points)
         self.btn_clear_perspective.setEnabled(len(self.image_label_preview.perspective_points) > 0)
@@ -1424,10 +1469,6 @@ if __name__ == "__main__":
         QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
         
     app = QApplication.instance() or QApplication(sys.argv)
-    if not REMBG_AVAILABLE: print("Warning: 'rembg' library not found. Background removal feature disabled. (pip install rembg)")
-    # <<<--- MODIFICATION: Add warning for SciPy
-    if not SCIPY_AVAILABLE: print("Warning: 'scipy' library not found. Magic Wand tool will be disabled. (pip install scipy)")
-    # <<<--- END MODIFICATION
     main_win = MainWindow()
     main_win.show()
     sys.exit(app.exec())

@@ -2,9 +2,8 @@
 
 import os
 import sys
-# --- THIS IS THE FIX ---
-# We will use a PyInstaller helper function to find the PySide6 data files correctly.
-from PyInstaller.utils.hooks import collect_data_files
+# We will use PyInstaller helper functions to find the package data/lib files correctly.
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules, collect_dynamic_libs, collect_all
 # ----------------------
 
 # --- Configuration ---
@@ -25,35 +24,92 @@ if not os.path.isdir(rembg_models_path):
         "allow rembg to download the necessary models, then try compiling again."
     )
 
-# --- Construct the list of data files ---
-# Start with our manual data (the rembg models)
-datas = [(rembg_models_path, '_internal/rembg_models')]
+# --- Robust dependency collection using collect_all ---
+# This helper collects submodules, data files, and binaries all at once.
+# It is the most reliable way to ensure complex packages like rembg and onnxruntime are bundled.
 
-# --- THIS IS THE FIX (continued) ---
-# Now, use the PyInstaller helper to automatically find and add all necessary
-# PySide6 files (plugins, translations, etc.). This works reliably with Anaconda.
+rembg_extra = collect_all('rembg')
+onnx_extra = collect_all('onnxruntime')
+torch_audio_extra = collect_all('torchaudio')
+click_extra = collect_all('click')
+onnx_lib_extra = collect_all('onnx')
+pooch_extra = collect_all('pooch')
+pymatting_extra = collect_all('pymatting') # Essential for alpha matting
+scipy_extra = collect_all('scipy') # Essential submodules for pymatting
+
+datas = [(rembg_models_path, '_internal/rembg_models')]
 datas.extend(collect_data_files('PySide6'))
-# -----------------------------------
+datas.extend(rembg_extra[0])
+datas.extend(onnx_extra[0])
+datas.extend(torch_audio_extra[0])
+datas.extend(click_extra[0])
+datas.extend(onnx_lib_extra[0])
+datas.extend(pooch_extra[0])
+datas.extend(pymatting_extra[0])
+datas.extend(scipy_extra[0])
+
+binaries = collect_dynamic_libs('onnxruntime')
+binaries.extend(rembg_extra[1])
+binaries.extend(onnx_extra[1])
+binaries.extend(torch_audio_extra[1])
+binaries.extend(click_extra[1])
+binaries.extend(onnx_lib_extra[1])
+binaries.extend(pooch_extra[1])
+binaries.extend(pymatting_extra[1])
+binaries.extend(scipy_extra[1])
+
+# Explicitly add the Python dynamic library (required for some Conda environments on MacOS)
+python_lib = os.path.join(sys.prefix, 'lib', 'libpython3.10.dylib')
+if os.path.exists(python_lib):
+    binaries.append((python_lib, '.'))
+else:
+    # Fallback to absolute path if sys.prefix doesn't match
+    fallback_lib = '/opt/anaconda3/envs/bgremover/lib/libpython3.10.dylib'
+    if os.path.exists(fallback_lib):
+        binaries.append((fallback_lib, '.'))
+
+hiddenimports = [
+    'rembg',
+    'onnxruntime',
+    'torchaudio',
+    'PySide6.QtCore',
+    'PySide6.QtWidgets',
+    'PySide6.QtGui',
+    'pooch',
+    'pymatting',
+    'scipy.ndimage',
+    'click',
+    'onnx',
+]
+hiddenimports.extend(rembg_extra[2])
+hiddenimports.extend(onnx_extra[2])
+hiddenimports.extend(torch_audio_extra[2])
+hiddenimports.extend(click_extra[2])
+hiddenimports.extend(onnx_lib_extra[2])
+hiddenimports.extend(pooch_extra[2])
+hiddenimports.extend(pymatting_extra[2])
+hiddenimports.extend(scipy_extra[2])
+# ----------------------------------------------------
 
 # --- PyInstaller Analysis ---
 a = Analysis(
     [SCRIPT_FILE],
     pathex=[],
-    binaries=[],
-    # Use the 'datas' list we constructed above
+    binaries=binaries,
     datas=datas,
-    hiddenimports=[
-        'rembg.sessions.u2net',
-        'rembg.sessions.u2netp',
-        'rembg.sessions.u2net_human_seg',
-        'rembg.sessions.silueta',
-        'rembg.sessions.isnet_general_use',
-        'rembg.sessions.isnet_anime',
-        'onnxruntime.capi.onnxruntime_inference_sessions',
-    ],
+    hiddenimports=hiddenimports,
     hookspath=[],
     runtime_hooks=['runtime_hook.py'],
-    excludes=[],
+    excludes=[
+        'PyQt5', 'PyQt6', 'tkinter', 'matplotlib', 'pandas', 'notebook', 'jupyter',
+        'numpy.testing', 'doctest', 'unittest',
+
+        # onnxruntime providers we are not using (we only want CPU).
+        # This prevents bundling large GPU-specific binaries.
+        'onnxruntime.providers.cuda', 'onnxruntime.providers.tensorrt',
+        'onnxruntime.providers.dnnl', 'onnxruntime.providers.openvino',
+        'onnxruntime.providers.directml',
+    ],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=None,
