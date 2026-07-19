@@ -115,12 +115,12 @@ Before compiling, you **must** run the script at least once (`python BACKGROUND_
 3.  The final application will be in the `dist` folder as `Background Remover.app`.
 4.  **Fix macOS Gatekeeper Issue**: To run the app, you may need to run this command first in the terminal (Only try if it does not work) :
     ```bash
-    xattr -cr "dist/Background Remover.app"
+    xattr -cr "dist/BackgroundRemover.app"
     ```
     OR
     
     ```bash
-    xattr -cr "'/Applications/Background Remover.app'"
+    xattr -cr "'/Applications/BackgroundRemover.app'"
     ```
 
 ---
