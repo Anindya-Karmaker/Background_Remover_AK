@@ -1,8 +1,18 @@
-PySide6
-Pillow
-numpy
-scipy
-opencv-python
-rembg
-requests
-onnxruntime
+PySide6>=6.7
+Pillow>=10.0
+numpy>=1.24
+scipy>=1.10
+# contrib build adds cv2.dnn_superres for AI upscaling (superset of opencv-python)
+opencv-contrib-python>=4.8
+rembg>=2.0
+onnxruntime>=1.16
+requests>=2.28
+
+# --- Optional extras ---------------------------------------------------
+# AVIF save support (Save As… → *.avif)
+# pillow-avif-plugin>=1.4
+# Hardware-accelerated AI (pick the one matching your platform; installing
+# one of these instead of plain onnxruntime enables GPU/CoreML in Preferences)
+# onnxruntime-gpu>=1.16          ; NVIDIA CUDA (Windows/Linux)
+# onnxruntime-silicon>=1.16      ; Apple Silicon (CoreML)
+# onnxruntime-directml>=1.16     ; Windows DirectML (any GPU)
