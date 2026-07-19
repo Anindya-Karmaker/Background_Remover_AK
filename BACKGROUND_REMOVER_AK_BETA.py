@@ -164,7 +164,7 @@ def get_models_dir():
     preferred = os.path.join(get_app_dir(), "models")
     if _is_writable(preferred):
         return preferred
-    fallback = os.path.join(os.path.expanduser("~"), ".BackgroundRemoverAK", "models")
+    fallback = os.path.join(os.path.expanduser("~"), ".BackgroundRemover", "models")
     os.makedirs(fallback, exist_ok=True)
     return fallback
 
