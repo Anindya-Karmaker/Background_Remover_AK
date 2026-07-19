@@ -19,6 +19,12 @@ import math
 import time
 import base64
 import tempfile
+import multiprocessing
+
+# conda's onnxruntime/scipy/numpy can load two OpenMP runtimes, which aborts
+# ("OMP: Error #15") mid-inference. Allow the duplicate so background removal
+# runs reliably. Must be set before numpy/onnxruntime import.
+os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 
 import numpy as np
 
@@ -4154,4 +4160,9 @@ def main():
 
 
 if __name__ == "__main__":
+    # CRITICAL for frozen (PyInstaller) builds: when a library such as
+    # rembg/onnxruntime spawns a worker process, the OS re-launches THIS
+    # executable. freeze_support() makes that child run its worker task and
+    # exit, instead of falling through and opening a second app window.
+    multiprocessing.freeze_support()
     main()
